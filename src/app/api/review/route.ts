@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { calculateNextReview, type Rating } from "@/lib/sm2";
+import { calculateXP, getRank, getProgressToNextRank } from "@/lib/xp";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -24,6 +25,13 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+
+  // Get problem data for XP calculation (difficulty and category)
+  const { data: problem } = await supabase
+    .from("problems")
+    .select("difficulty, tags")
+    .eq("id", problemId)
+    .single();
 
   // Get current progress
   const { data: currentProgress } = await supabase
@@ -66,21 +74,68 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: progressError.message }, { status: 500 });
   }
 
-  // Insert review history
+  // Update streak and get streak info for the response
+  const streakResult = await updateStreak(supabase, user.id);
+
+  // Calculate XP earned for this review
+  const difficulty = problem?.difficulty as "Easy" | "Medium" | "Hard" | null;
+  const xpEarned = calculateXP(difficulty, rating, streakResult.currentStreak);
+
+  // Get current user XP
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("total_xp")
+    .eq("id", user.id)
+    .single();
+
+  const currentXP = profile?.total_xp ?? 0;
+  const newTotalXP = currentXP + xpEarned;
+  const oldRank = getRank(currentXP);
+  const newRank = getRank(newTotalXP);
+  const rankProgress = getProgressToNextRank(newTotalXP);
+
+  // Update total XP in profiles
+  await supabase
+    .from("profiles")
+    .update({ total_xp: newTotalXP })
+    .eq("id", user.id);
+
+  // Update category XP (use first tag as category, or "General" if none)
+  const category = problem?.tags?.[0] ?? "General";
+  const { data: categoryXP } = await supabase
+    .from("user_category_xp")
+    .select("xp")
+    .eq("user_id", user.id)
+    .eq("category", category)
+    .single();
+
+  if (categoryXP) {
+    await supabase
+      .from("user_category_xp")
+      .update({ xp: categoryXP.xp + xpEarned })
+      .eq("user_id", user.id)
+      .eq("category", category);
+  } else {
+    await supabase.from("user_category_xp").insert({
+      user_id: user.id,
+      category,
+      xp: xpEarned,
+    });
+  }
+
+  // Insert review history with XP earned
   const { error: historyError } = await supabase.from("review_history").insert({
     user_id: user.id,
     problem_id: problemId,
     rating,
     time_spent: timeSpent ? Math.min(timeSpent, 60) : null,
     notes: notes || null,
+    xp_earned: xpEarned,
   });
 
   if (historyError) {
     console.error("Failed to insert review history:", historyError);
   }
-
-  // Update streak and get streak info for the response
-  const streakResult = await updateStreak(supabase, user.id);
 
   return NextResponse.json({
     success: true,
@@ -94,6 +149,18 @@ export async function POST(request: Request) {
       longest: streakResult.longestStreak,
       isNewRecord: streakResult.isNewRecord,
     } : null,
+    // XP info
+    xp: {
+      earned: xpEarned,
+      total: newTotalXP,
+      rank: newRank.name,
+      rankColor: newRank.color,
+      rankBadge: newRank.badge ?? null,
+      rankUp: oldRank.name !== newRank.name ? newRank.name : null,
+      progress: rankProgress.percentage,
+      nextRank: rankProgress.nextRank?.name ?? null,
+      xpToNext: rankProgress.nextRank ? rankProgress.requiredXP - rankProgress.progressXP : 0,
+    },
   });
 }
 

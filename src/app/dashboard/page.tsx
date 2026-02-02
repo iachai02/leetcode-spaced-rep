@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,27 @@ interface QueueData {
   isGuest?: boolean;
 }
 
+interface WeekDay {
+  day: string;
+  date: string;
+  completed: boolean;
+  count: number;
+  isToday: boolean;
+  isFuture: boolean;
+}
+
+interface XPStats {
+  total: number;
+  rank: string;
+  rankColor: string;
+  rankBadge: string | null;
+  progress: number;
+  nextRank: string | null;
+  xpToNext: number;
+  progressXP: number;
+  requiredXP: number;
+}
+
 interface StatsData {
   currentStreak: number;
   longestStreak: number;
@@ -50,6 +72,10 @@ interface StatsData {
   // Activity data for heatmap - bundled with stats to avoid extra fetch
   activity: Record<string, number>;
   maxActivityCount: number;
+  // Weekly activity for streak modal
+  weeklyActivity: WeekDay[];
+  // XP and rank data
+  xp: XPStats;
 }
 
 interface UpcomingProblem {
@@ -69,7 +95,19 @@ export default function DashboardPage() {
   const [queueData, setQueueData] = useState<QueueData | null>(null);
   const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [extraProblems, setExtraProblems] = useState(0);
+  // Persist extraProblems in sessionStorage so it survives page navigation
+  // Use lazy initializer to read from sessionStorage before first render
+  const [extraProblems, setExtraProblemsState] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    const stored = sessionStorage.getItem("extraProblems");
+    return stored ? parseInt(stored, 10) || 0 : 0;
+  });
+
+  // Wrapper to update both state and sessionStorage
+  const setExtraProblems = (value: number) => {
+    setExtraProblemsState(value);
+    sessionStorage.setItem("extraProblems", value.toString());
+  };
   const [showAddMoreDialog, setShowAddMoreDialog] = useState(false);
   const [ratingProblem, setRatingProblem] = useState<Problem | null>(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -82,6 +120,7 @@ export default function DashboardPage() {
   // Streak modal state - shown after first problem of the day
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [streakData, setStreakData] = useState<ReviewResponse["streak"]>(null);
+  const [streakXPData, setStreakXPData] = useState<ReviewResponse["xp"] | null>(null);
 
   const fetchData = useCallback(async (excludeIds: string[] = []) => {
     // Pass skipped IDs to the API so it returns replacement problems
@@ -154,6 +193,7 @@ export default function DashboardPage() {
     // Show streak modal if this was the first problem of the day
     if (response.isFirstOfDay && response.streak) {
       setStreakData(response.streak);
+      setStreakXPData(response.xp);
       setShowStreakModal(true);
     }
   };
@@ -167,7 +207,10 @@ export default function DashboardPage() {
   // Calculate how many problems to show (derived from state, not in useEffect deps)
   const dailyGoal = queueData?.dailyGoal ?? 3;
   const reviewedToday = queueData?.reviewedToday ?? 0;
-  const targetForToday = dailyGoal + extraProblems;
+  // If user already exceeded daily goal, base target on what they've done
+  // This ensures "+1" always shows 1 more problem, even if they've done extra
+  const baseTarget = Math.max(dailyGoal, reviewedToday);
+  const targetForToday = baseTarget + extraProblems;
   const remainingToShow = Math.max(0, targetForToday - reviewedToday);
 
   const handleAddMore = (count: number) => {
@@ -382,6 +425,71 @@ export default function DashboardPage() {
             </Card>
           ) : (
             <>
+              {/* XP and Rank Card */}
+              {statsData?.xp && (
+                <Card className="mb-4">
+                  <CardContent className="py-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      {/* Rank Badge */}
+                      <div className="flex items-center gap-3">
+                        {statsData.xp.rankBadge ? (
+                          // Special badge for LeetCode Legend
+                          <Image
+                            src={statsData.xp.rankBadge}
+                            alt={statsData.xp.rank}
+                            width={56}
+                            height={56}
+                            className="object-contain"
+                          />
+                        ) : (
+                          // Default colored circle for other ranks
+                          <div
+                            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                            style={{ backgroundColor: statsData.xp.rankColor }}
+                          >
+                            {statsData.xp.rank.charAt(0)}
+                          </div>
+                        )}
+                        <div>
+                          <p
+                            className="font-semibold"
+                            style={{ color: statsData.xp.rankColor }}
+                          >
+                            {statsData.xp.rank}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {statsData.xp.total.toLocaleString()} XP
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Progress to next rank */}
+                      {statsData.xp.nextRank && (
+                        <div className="flex-1">
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-muted-foreground">
+                              Progress to {statsData.xp.nextRank}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {statsData.xp.xpToNext.toLocaleString()} XP to go
+                            </span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${statsData.xp.progress}%`,
+                                backgroundColor: statsData.xp.rankColor,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
@@ -536,6 +644,8 @@ export default function DashboardPage() {
         open={showStreakModal}
         onClose={() => setShowStreakModal(false)}
         streak={streakData}
+        xp={streakXPData}
+        weeklyActivity={statsData?.weeklyActivity}
       />
     </div>
   );

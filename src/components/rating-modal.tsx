@@ -38,6 +38,16 @@ export interface ReviewResponse {
     longest: number;
     isNewRecord: boolean;
   } | null;
+  xp: {
+    earned: number;
+    total: number;
+    rank: string;
+    rankColor: string;
+    rankUp: string | null;
+    progress: number;
+    nextRank: string | null;
+    xpToNext: number;
+  };
 }
 
 interface RatingModalProps {

@@ -11,7 +11,7 @@ export async function GET() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("daily_goal, display_name")
+    .select("daily_goal, display_name, show_on_leaderboard, friend_code, total_xp")
     .eq("id", user.id)
     .single();
 
@@ -19,6 +19,9 @@ export async function GET() {
     dailyGoal: profile?.daily_goal ?? 3,
     displayName: profile?.display_name ?? null,
     email: user.email,
+    showOnLeaderboard: profile?.show_on_leaderboard ?? false,
+    friendCode: profile?.friend_code ?? null,
+    totalXP: profile?.total_xp ?? 0,
   });
 }
 
@@ -31,7 +34,7 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json();
-  const { dailyGoal } = body;
+  const { dailyGoal, showOnLeaderboard } = body;
 
   // Validate daily goal (minimum 1, maximum 20)
   if (dailyGoal !== undefined) {
@@ -46,6 +49,9 @@ export async function PATCH(request: Request) {
   const updates: Record<string, unknown> = {};
   if (dailyGoal !== undefined) {
     updates.daily_goal = dailyGoal;
+  }
+  if (showOnLeaderboard !== undefined) {
+    updates.show_on_leaderboard = showOnLeaderboard;
   }
 
   const { error } = await supabase

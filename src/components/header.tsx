@@ -50,16 +50,22 @@ export function Header() {
           ) : user ? (
             <>
               <Link
+                href='/dashboard'
+                className='text-muted-foreground hover:text-foreground transition-colors'
+              >
+                Dashboard
+              </Link>
+              <Link
                 href='/sets'
                 className='text-muted-foreground hover:text-foreground transition-colors'
               >
                 Problem Sets
               </Link>
               <Link
-                href='/dashboard'
+                href='/leaderboard'
                 className='text-muted-foreground hover:text-foreground transition-colors'
               >
-                Dashboard
+                Leaderboard
               </Link>
               <Link
                 href='/settings'

@@ -3,14 +3,20 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Copy, Check } from "lucide-react";
 
 export default function SettingsPage() {
   const [dailyGoal, setDailyGoal] = useState(3);
   const [originalGoal, setOriginalGoal] = useState(3);
+  const [showOnLeaderboard, setShowOnLeaderboard] = useState(false);
+  const [originalShowOnLeaderboard, setOriginalShowOnLeaderboard] = useState(false);
+  const [friendCode, setFriendCode] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     const response = await fetch("/api/profile");
@@ -18,6 +24,9 @@ export default function SettingsPage() {
       const data = await response.json();
       setDailyGoal(data.dailyGoal);
       setOriginalGoal(data.dailyGoal);
+      setShowOnLeaderboard(data.showOnLeaderboard);
+      setOriginalShowOnLeaderboard(data.showOnLeaderboard);
+      setFriendCode(data.friendCode);
       setEmail(data.email);
     }
     setLoading(false);
@@ -34,11 +43,12 @@ export default function SettingsPage() {
     const response = await fetch("/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dailyGoal }),
+      body: JSON.stringify({ dailyGoal, showOnLeaderboard }),
     });
 
     if (response.ok) {
       setOriginalGoal(dailyGoal);
+      setOriginalShowOnLeaderboard(showOnLeaderboard);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     }
@@ -46,7 +56,15 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
-  const hasChanges = dailyGoal !== originalGoal;
+  const copyFriendCode = () => {
+    if (friendCode) {
+      navigator.clipboard.writeText(friendCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const hasChanges = dailyGoal !== originalGoal || showOnLeaderboard !== originalShowOnLeaderboard;
 
   if (loading) {
     return (
@@ -140,6 +158,70 @@ export default function SettingsPage() {
                 <span className="text-sm text-green-500">Saved!</span>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Leaderboard Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Leaderboard</CardTitle>
+            <CardDescription>
+              Control your visibility on the global leaderboard
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label className="text-sm font-medium">Show on Global Leaderboard</label>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, your rank and XP will be visible to everyone
+                </p>
+              </div>
+              <Switch
+                checked={showOnLeaderboard}
+                onCheckedChange={setShowOnLeaderboard}
+              />
+            </div>
+
+            {friendCode && (
+              <div className="pt-2 border-t">
+                <label className="text-sm font-medium">Your Friend Code</label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Share this code with friends so they can add you
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="bg-muted px-3 py-2 rounded text-lg font-mono flex-1">
+                    {friendCode}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={copyFriendCode}
+                    className="shrink-0"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {hasChanges && (
+              <div className="flex items-center gap-2 pt-2">
+                <Button
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+                {saved && (
+                  <span className="text-sm text-green-500">Saved!</span>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

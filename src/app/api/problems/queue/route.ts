@@ -172,8 +172,12 @@ export async function GET(request: Request) {
   }
 
   // Filter and sort problems
+  // Priority order:
+  // 1. Overdue problems (need review, sorted by how overdue they are)
+  // 2. New problems (never attempted, sorted by curriculum order)
+  // 3. Non-due problems (already reviewed, sorted by curriculum order for extra practice)
   const now = new Date();
-  const dueProblems = problems
+  const allProblems = problems
     .map((problem) => {
       const progress = progressMap.get(problem.id);
       const nextReview = progress?.next_review
@@ -181,12 +185,12 @@ export async function GET(request: Request) {
         : null;
       const status = progress?.status ?? "new";
       const sortOrder = sortOrderMap.get(problem.id) ?? Infinity;
+      const isNew = !progress; // Never attempted = no progress record
+      const isOverdue = nextReview && nextReview <= now;
 
-      // Calculate urgency (negative = overdue, positive = not yet due)
+      // Calculate urgency for overdue problems (more negative = more overdue)
       let urgency = 0;
-      if (status === "new") {
-        urgency = -Infinity; // New problems have highest priority
-      } else if (nextReview) {
+      if (nextReview) {
         urgency = nextReview.getTime() - now.getTime();
       }
 
@@ -196,39 +200,39 @@ export async function GET(request: Request) {
         nextReview: progress?.next_review ?? null,
         urgency,
         sortOrder,
-        isDue: status === "new" || (nextReview && nextReview <= now),
+        isNew,
+        isOverdue,
       };
     })
-    .filter((p) => p.isDue && !excludedIds.includes(p.id))
+    .filter((p) => !excludedIds.includes(p.id))
     .sort((a, b) => {
-      // Primary sort by urgency
-      if (a.urgency !== b.urgency) {
-        // Handle -Infinity comparison
-        if (a.urgency === -Infinity && b.urgency === -Infinity) {
-          // Both are new, use sort_order
-          return a.sortOrder - b.sortOrder;
-        }
-        return a.urgency - b.urgency;
+      // 1. Overdue problems first (sorted by how overdue - most overdue first)
+      if (a.isOverdue && !b.isOverdue) return -1;
+      if (!a.isOverdue && b.isOverdue) return 1;
+      if (a.isOverdue && b.isOverdue) {
+        // Both overdue - more negative urgency = more overdue = higher priority
+        if (a.urgency !== b.urgency) return a.urgency - b.urgency;
+        return a.sortOrder - b.sortOrder;
       }
-      // Secondary sort by sort_order (curriculum order)
+
+      // 2. New problems second (sorted by curriculum order)
+      if (a.isNew && !b.isNew) return -1;
+      if (!a.isNew && b.isNew) return 1;
+      if (a.isNew && b.isNew) {
+        return a.sortOrder - b.sortOrder;
+      }
+
+      // 3. Non-due problems last (sorted by curriculum order for consistent experience)
       return a.sortOrder - b.sortOrder;
     })
     .slice(0, limit);
 
-  // Check if there are more due problems beyond what we're returning
-  // (excluding skipped ones from the count)
-  const hasMoreProblems = problems.filter((p) => {
-    if (excludedIds.includes(p.id)) return false;
-    const progress = progressMap.get(p.id);
-    const status = progress?.status ?? "new";
-    const nextReview = progress?.next_review
-      ? new Date(progress.next_review)
-      : null;
-    return status === "new" || (nextReview && nextReview <= now);
-  }).length > limit;
+  // Check if there are more problems beyond what we're returning
+  const totalAvailable = problems.filter((p) => !excludedIds.includes(p.id)).length;
+  const hasMoreProblems = totalAvailable > limit;
 
   return NextResponse.json({
-    problems: dueProblems,
+    problems: allProblems,
     dailyGoal,
     reviewedToday,
     hasMoreProblems,
