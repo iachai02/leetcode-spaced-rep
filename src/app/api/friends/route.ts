@@ -1,16 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import { generateFriendCode } from "@/lib/friend-code";
 import { NextResponse } from "next/server";
 import { getRank } from "@/lib/xp";
-
-// Generate a random 8-character alphanumeric friend code
-function generateFriendCode(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
 
 // GET - List friends and pending requests
 export async function GET() {
@@ -73,7 +64,7 @@ export async function GET() {
   // Categorize friendships
   const friends: Array<{
     friendshipId: string;
-    odisplayName: string;
+    displayName: string;
     totalXP: number;
     rankName: string;
     rankColor: string;
@@ -99,7 +90,7 @@ export async function GET() {
     if (f.status === "accepted") {
       friends.push({
         friendshipId: f.id,
-        odisplayName: otherProfile?.display_name || "Anonymous",
+        displayName: otherProfile?.display_name || "Anonymous",
         totalXP: otherProfile?.total_xp ?? 0,
         rankName: rank.name,
         rankColor: rank.color,

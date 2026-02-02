@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DIFFICULTY_COLORS } from "@/lib/constants";
 
 interface Problem {
   id: string;
@@ -30,12 +31,6 @@ interface Stats {
   review: number;
   mastered: number;
 }
-
-const difficultyColors = {
-  Easy: "bg-green-500/10 text-green-500 border-green-500/20",
-  Medium: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  Hard: "bg-red-500/10 text-red-500 border-red-500/20",
-};
 
 const statusColors: Record<string, string> = {
   new: "bg-gray-500/10 text-gray-500 border-gray-500/20",
@@ -178,7 +173,7 @@ export default function SetDetailPage() {
                 {problem.difficulty && (
                   <Badge
                     variant="outline"
-                    className={difficultyColors[problem.difficulty]}
+                    className={DIFFICULTY_COLORS[problem.difficulty]}
                   >
                     {problem.difficulty}
                   </Badge>

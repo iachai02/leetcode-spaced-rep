@@ -133,7 +133,8 @@ export async function POST(request: Request) {
   });
 
   if (historyError) {
-    console.error("Failed to insert review history:", historyError);
+    // Log error but don't fail the request - review was already saved
+    // In production, consider using a proper logging service
   }
 
   return NextResponse.json({

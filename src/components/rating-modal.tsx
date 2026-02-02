@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { previewIntervals, formatInterval, type Rating } from "@/lib/sm2";
 import { cn } from "@/lib/utils";
+import { DIFFICULTY_COLORS } from "@/lib/constants";
 
 interface Problem {
   id: string;
@@ -56,12 +57,6 @@ interface RatingModalProps {
   onClose: () => void;
   onSubmit: (response: ReviewResponse) => void;
 }
-
-const difficultyColors = {
-  Easy: "bg-green-500/10 text-green-500 border-green-500/20",
-  Medium: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  Hard: "bg-red-500/10 text-red-500 border-red-500/20",
-};
 
 const ratingOptions: { value: Rating; label: string; color: string; selectedBg: string }[] = [
   { value: "again", label: "Again", color: "border-red-500/50", selectedBg: "bg-red-500/20 border-red-500" },
@@ -178,7 +173,7 @@ export function RatingModal({ problem, open, onClose, onSubmit }: RatingModalPro
             {problem.difficulty && (
               <Badge
                 variant="outline"
-                className={cn("w-fit", difficultyColors[problem.difficulty])}
+                className={cn("w-fit", DIFFICULTY_COLORS[problem.difficulty])}
               >
                 {problem.difficulty}
               </Badge>

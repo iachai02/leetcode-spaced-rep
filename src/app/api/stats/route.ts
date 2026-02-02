@@ -81,7 +81,8 @@ export async function GET() {
     const date = r.reviewed_at.split("T")[0];
     activityMap[date] = (activityMap[date] ?? 0) + 1;
   }
-  const maxActivityCount = Math.max(...Object.values(activityMap), 0);
+  const activityValues = Object.values(activityMap);
+  const maxActivityCount = activityValues.length > 0 ? Math.max(...activityValues) : 0;
 
   // Calculate weekly activity (Mon-Sun for current week)
   // Week starts on Monday (ISO standard)

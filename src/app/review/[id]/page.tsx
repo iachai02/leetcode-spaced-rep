@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { previewIntervals, formatInterval, type Rating } from "@/lib/sm2";
+import { DIFFICULTY_COLORS } from "@/lib/constants";
 
 interface Problem {
   id: string;
@@ -22,12 +23,6 @@ interface ProgressState {
   repetitions: number;
   status: string;
 }
-
-const difficultyColors = {
-  Easy: "bg-green-500/10 text-green-500 border-green-500/20",
-  Medium: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  Hard: "bg-red-500/10 text-red-500 border-red-500/20",
-};
 
 export default function ReviewPage() {
   const params = useParams();
@@ -147,7 +142,7 @@ export default function ReviewPage() {
               {problem.difficulty && (
                 <Badge
                   variant="outline"
-                  className={difficultyColors[problem.difficulty]}
+                  className={DIFFICULTY_COLORS[problem.difficulty]}
                 >
                   {problem.difficulty}
                 </Badge>

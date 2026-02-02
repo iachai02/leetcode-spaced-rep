@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Popover,
   PopoverContent,
@@ -66,25 +66,4 @@ export function OnboardingTooltip({
       </PopoverContent>
     </Popover>
   );
-}
-
-export function useOnboarding() {
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(true);
-
-  useEffect(() => {
-    // Check if any onboarding tooltips haven't been seen
-    const tooltips = ["rating-buttons", "streak-counter", "problem-queue"];
-    const unseenTooltips = tooltips.filter(
-      (id) => !localStorage.getItem(`onboarding_${id}`)
-    );
-    if (unseenTooltips.length > 0) {
-      setHasSeenOnboarding(false);
-    }
-  }, []);
-
-  const markOnboardingComplete = () => {
-    setHasSeenOnboarding(true);
-  };
-
-  return { hasSeenOnboarding, markOnboardingComplete };
 }

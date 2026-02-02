@@ -20,6 +20,7 @@ import { OnboardingModal } from "@/components/onboarding-modal";
 import { Badge } from "@/components/ui/badge";
 import { ActivityHeatmap } from "@/components/activity-heatmap";
 import { Lock } from "lucide-react";
+import { DIFFICULTY_COLORS } from "@/lib/constants";
 
 interface Problem {
   id: string;
@@ -709,12 +710,6 @@ export default function DashboardPage() {
 
 // Helper component for the Upcoming tab
 // Shows a compact row with position, problem info, and due date
-const difficultyColors = {
-  Easy: "bg-green-500/10 text-green-500 border-green-500/20",
-  Medium: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  Hard: "bg-red-500/10 text-red-500 border-red-500/20",
-};
-
 const statusColors: Record<string, string> = {
   learning: "text-yellow-500",
   review: "text-blue-500",
@@ -770,7 +765,7 @@ function UpcomingProblemRow({
           {problem.difficulty && (
             <Badge
               variant="outline"
-              className={`text-xs ${difficultyColors[problem.difficulty]}`}
+              className={`text-xs ${DIFFICULTY_COLORS[problem.difficulty]}`}
             >
               {problem.difficulty}
             </Badge>
