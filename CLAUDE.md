@@ -97,50 +97,10 @@ This helps build understanding, not just working code.
 
 ---
 
-## Current Session State (for context continuity)
+## Recent Features
 
-### Recent Logic Changes
-
-- **Activity heatmap** (`/components/activity-heatmap.tsx`, `/api/stats/activity/route.ts`):
-  - GitHub-style contribution graph showing daily problem completions
-  - Blue color scheme: darker = fewer, lighter = more problems
-  - Shows last 365 days as a 53x7 grid (weeks × days)
-  - API returns `{ activity: { "2024-01-15": 3, ... }, maxCount }` for color scaling
-
-- **Attempt count on Upcoming tab** (`/api/problems/upcoming/route.ts`):
-  - Counts entries in `review_history` per problem
-  - Displays "X attempts" next to each problem in the Upcoming list
-
-- **Skip button + replacement logic** (`/components/problem-card.tsx`, `/app/dashboard/page.tsx`, `/api/problems/queue/route.ts`):
-  - Added Skip button (ghost variant) to problem cards
-  - Skipped IDs tracked in React state (`skippedIds`)
-  - API accepts `?exclude=id1,id2` parameter to filter out skipped problems
-  - When you skip, the API returns a replacement problem to maintain queue size
-  - Skipped problems reappear on page refresh (intentional - skipping is temporary)
-
-- **Upcoming tab** (`/app/dashboard/page.tsx`, `/api/problems/upcoming/route.ts`):
-  - New "Upcoming" tab shows problems you've attempted, sorted by next review date
-  - Only shows attempted problems (not new ones) because new problems don't have scheduled dates
-  - Each row shows position (rank), problem info, attempt count, and when it's due
-
-### Current Task Status
-
-**COMPLETED** - All requested features are implemented:
-1. ✅ Activity heatmap on Stats tab (GitHub-style, blue color scheme)
-2. ✅ Attempt count displayed on Upcoming tab
-3. ✅ Skip button on problem cards (replaces with next problem)
-4. ✅ Upcoming tab showing attempted problems by due date
-5. ✅ Rating modal with blurred backdrop on return from LeetCode
-
-### Mental Context / Edge Cases
-
-- Heatmap color intensity: 0 = gray, then 4 levels of blue based on ratio to maxCount
-- Attempt count comes from counting `review_history` rows per problem
-- `skippedIds` is React state (not localStorage) - resets on page refresh
-- Upcoming API filters by `status != 'new'` to only show attempted problems
-
-### What To Do First After Restart
-
-1. Test heatmap: Go to Stats tab, should show activity grid
-2. Test Upcoming tab: Should show attempted problems with attempt counts
-3. Test skip: Click Skip → problem disappears, new one appears
+- **Dashboard tabs**: Today (due problems), Upcoming (scheduled reviews), Stats
+- **Rating modal**: Blurred backdrop, appears when returning from LeetCode via Visibility API
+- **Activity heatmap**: GitHub-style contribution graph on Stats tab (blue color scheme)
+- **Problem cards**: Compact layout with expandable tags, Skip button
+- **Skip functionality**: Temporarily hides problem, replaced by next in queue (resets on refresh)
