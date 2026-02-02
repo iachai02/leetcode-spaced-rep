@@ -3,14 +3,18 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, AlertCircle } from "lucide-react";
 
 export default function SettingsPage() {
   const [dailyGoal, setDailyGoal] = useState(3);
   const [originalGoal, setOriginalGoal] = useState(3);
   const [showOnLeaderboard, setShowOnLeaderboard] = useState(false);
-  const [originalShowOnLeaderboard, setOriginalShowOnLeaderboard] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [originalDisplayName, setOriginalDisplayName] = useState("");
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const [savingDisplayName, setSavingDisplayName] = useState(false);
   const [friendCode, setFriendCode] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,13 +23,14 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
 
   const fetchProfile = useCallback(async () => {
-    const response = await fetch("/api/profile");
+    const response = await fetch("/api/profile", { cache: "no-store" });
     if (response.ok) {
       const data = await response.json();
       setDailyGoal(data.dailyGoal);
       setOriginalGoal(data.dailyGoal);
       setShowOnLeaderboard(data.showOnLeaderboard);
-      setOriginalShowOnLeaderboard(data.showOnLeaderboard);
+      setDisplayName(data.displayName ?? "");
+      setOriginalDisplayName(data.displayName ?? "");
       setFriendCode(data.friendCode);
       setEmail(data.email);
     }
@@ -43,17 +48,85 @@ export default function SettingsPage() {
     const response = await fetch("/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dailyGoal, showOnLeaderboard }),
+      body: JSON.stringify({ dailyGoal }),
     });
 
     if (response.ok) {
       setOriginalGoal(dailyGoal);
-      setOriginalShowOnLeaderboard(showOnLeaderboard);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     }
 
     setSaving(false);
+  };
+
+  const handleLeaderboardToggle = async (checked: boolean) => {
+    const previousValue = showOnLeaderboard;
+    setShowOnLeaderboard(checked);
+
+    const response = await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ showOnLeaderboard: checked }),
+    });
+
+    if (!response.ok) {
+      // Revert on failure
+      setShowOnLeaderboard(previousValue);
+    }
+  };
+
+  const handleSaveDisplayName = async () => {
+    const trimmedName = displayName.trim();
+
+    // Skip if unchanged
+    if (trimmedName === originalDisplayName) {
+      return;
+    }
+
+    // Allow clearing the name
+    if (trimmedName === "") {
+      setSavingDisplayName(true);
+      setDisplayNameError(null);
+
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: null }),
+      });
+
+      if (response.ok) {
+        setOriginalDisplayName("");
+        setDisplayName("");
+      }
+      setSavingDisplayName(false);
+      return;
+    }
+
+    // Validate length
+    if (trimmedName.length < 2 || trimmedName.length > 30) {
+      setDisplayNameError("Must be 2-30 characters");
+      return;
+    }
+
+    setSavingDisplayName(true);
+    setDisplayNameError(null);
+
+    const response = await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: trimmedName }),
+    });
+
+    if (response.ok) {
+      setOriginalDisplayName(trimmedName);
+      setDisplayName(trimmedName);
+    } else {
+      const data = await response.json();
+      setDisplayNameError(data.error || "Failed to save");
+    }
+
+    setSavingDisplayName(false);
   };
 
   const copyFriendCode = () => {
@@ -64,7 +137,7 @@ export default function SettingsPage() {
     }
   };
 
-  const hasChanges = dailyGoal !== originalGoal || showOnLeaderboard !== originalShowOnLeaderboard;
+  const hasChanges = dailyGoal !== originalGoal;
 
   if (loading) {
     return (
@@ -87,15 +160,56 @@ export default function SettingsPage() {
       <h1 className="text-3xl font-bold mb-6">Settings</h1>
 
       <div className="space-y-6 max-w-lg">
-        {/* Account Info */}
+        {/* Profile */}
         <Card>
           <CardHeader>
-            <CardTitle>Account</CardTitle>
-            <CardDescription>Your account information</CardDescription>
+            <CardTitle>Profile</CardTitle>
+            <CardDescription>
+              Your display name shown on the leaderboard
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Email</p>
-            <p className="font-medium">{email}</p>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Display Name</label>
+              <p className="text-xs text-muted-foreground mb-2">
+                This is how you&apos;ll appear to others. Must be unique.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={displayName}
+                  onChange={(e) => {
+                    setDisplayName(e.target.value);
+                    setDisplayNameError(null);
+                  }}
+                  onBlur={handleSaveDisplayName}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSaveDisplayName();
+                    }
+                  }}
+                  placeholder="Enter your name"
+                  maxLength={30}
+                  disabled={savingDisplayName}
+                  className={displayNameError ? "border-red-500" : ""}
+                />
+                {savingDisplayName && (
+                  <span className="text-sm text-muted-foreground self-center">
+                    Saving...
+                  </span>
+                )}
+              </div>
+              {displayNameError && (
+                <p className="text-sm text-red-500 mt-1 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {displayNameError}
+                </p>
+              )}
+            </div>
+
+            <div className="pt-2 border-t">
+              <p className="text-sm text-muted-foreground">Email</p>
+              <p className="font-medium">{email}</p>
+            </div>
           </CardContent>
         </Card>
 
@@ -179,7 +293,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={showOnLeaderboard}
-                onCheckedChange={setShowOnLeaderboard}
+                onCheckedChange={handleLeaderboardToggle}
               />
             </div>
 
@@ -209,19 +323,6 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {hasChanges && (
-              <div className="flex items-center gap-2 pt-2">
-                <Button
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? "Saving..." : "Save Changes"}
-                </Button>
-                {saved && (
-                  <span className="text-sm text-green-500">Saved!</span>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

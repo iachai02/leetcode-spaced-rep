@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +16,7 @@ import {
 import { ProblemCard } from "@/components/problem-card";
 import { RatingModal, type ReviewResponse } from "@/components/rating-modal";
 import { StreakModal } from "@/components/streak-modal";
+import { OnboardingModal } from "@/components/onboarding-modal";
 import { Badge } from "@/components/ui/badge";
 import { ActivityHeatmap } from "@/components/activity-heatmap";
 import { Lock } from "lucide-react";
@@ -95,18 +96,18 @@ export default function DashboardPage() {
   const [queueData, setQueueData] = useState<QueueData | null>(null);
   const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
-  // Persist extraProblems in sessionStorage so it survives page navigation
-  // Use lazy initializer to read from sessionStorage before first render
-  const [extraProblems, setExtraProblemsState] = useState(() => {
-    if (typeof window === "undefined") return 0;
-    const stored = sessionStorage.getItem("extraProblems");
-    return stored ? parseInt(stored, 10) || 0 : 0;
+  // Track the user's target for today - starts as dailyGoal, increases when they click "+N"
+  // This is stored in sessionStorage so it persists during navigation but resets each session
+  const [targetForToday, setTargetForTodayState] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const stored = sessionStorage.getItem("targetForToday");
+    return stored ? parseInt(stored, 10) : null;
   });
 
   // Wrapper to update both state and sessionStorage
-  const setExtraProblems = (value: number) => {
-    setExtraProblemsState(value);
-    sessionStorage.setItem("extraProblems", value.toString());
+  const setTargetForToday = (value: number) => {
+    setTargetForTodayState(value);
+    sessionStorage.setItem("targetForToday", value.toString());
   };
   const [showAddMoreDialog, setShowAddMoreDialog] = useState(false);
   const [ratingProblem, setRatingProblem] = useState<Problem | null>(null);
@@ -121,8 +122,10 @@ export default function DashboardPage() {
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [streakData, setStreakData] = useState<ReviewResponse["streak"]>(null);
   const [streakXPData, setStreakXPData] = useState<ReviewResponse["xp"] | null>(null);
+  // Onboarding modal state - shown on first login for signed-in users
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  const fetchData = useCallback(async (excludeIds: string[] = []) => {
+  const fetchData = useCallback(async (excludeIds: string[] = [], isInitialLoad = false) => {
     // Pass skipped IDs to the API so it returns replacement problems
     const excludeParam = excludeIds.length > 0 ? `&exclude=${excludeIds.join(",")}` : "";
 
@@ -134,26 +137,53 @@ export default function DashboardPage() {
     const userIsGuest = queueJson.isGuest === true;
     setIsGuest(userIsGuest);
 
+    // Initialize targetForToday on first load if not already set
+    // This captures the dailyGoal at session start and won't change as reviewedToday increases
+    if (isInitialLoad && targetForToday === null) {
+      const dailyGoal = queueJson.dailyGoal ?? 3;
+      const reviewedToday = queueJson.reviewedToday ?? 0;
+      // If user already exceeded their daily goal, use that as the base
+      // Otherwise use the daily goal
+      const initialTarget = Math.max(dailyGoal, reviewedToday);
+      setTargetForToday(initialTarget);
+    }
+
     // Only fetch stats and upcoming for signed-in users
     // Guests don't have personalized data to show
     if (!userIsGuest) {
-      const [statsResponse, upcomingResponse] = await Promise.all([
+      const [statsResponse, upcomingResponse, profileResponse] = await Promise.all([
         fetch("/api/stats"),
         fetch("/api/problems/upcoming"),
+        fetch("/api/profile", { cache: "no-store" }),
       ]);
       const statsJson = await statsResponse.json();
       const upcomingJson = await upcomingResponse.json();
+      const profileJson = await profileResponse.json();
       setStatsData(statsJson);
       setUpcomingProblems(upcomingJson.problems ?? []);
+
+      // Check if onboarding should be shown
+      // Show if: signed in, no display name, and hasn't completed onboarding before
+      if (isInitialLoad) {
+        const hasCompletedOnboarding = localStorage.getItem("onboarding_complete") === "true";
+        if (!profileJson.displayName && !hasCompletedOnboarding) {
+          setShowOnboarding(true);
+        }
+      }
     }
 
     setLoading(false);
-  }, []);
+  }, [targetForToday]);
 
-  // Fetch data on mount and when extraProblems or skippedIds changes
+  // Fetch data on mount and when skippedIds changes
+  // Use a ref to track if we've done the initial load (refs don't trigger re-renders)
+  const initialLoadDoneRef = useRef(false);
+
   useEffect(() => {
-    fetchData(skippedIds);
-  }, [extraProblems, skippedIds, fetchData]);
+    const isInitial = !initialLoadDoneRef.current;
+    initialLoadDoneRef.current = true;
+    fetchData(skippedIds, isInitial);
+  }, [skippedIds, fetchData]);
 
   // Listen for visibility change to show rating modal when user returns
   // Only for signed-in users - guests don't track progress
@@ -204,17 +234,24 @@ export default function DashboardPage() {
     setSkippedIds((prev) => [...prev, problemId]);
   };
 
-  // Calculate how many problems to show (derived from state, not in useEffect deps)
+  // Handle onboarding completion
+  const handleOnboardingComplete = () => {
+    localStorage.setItem("onboarding_complete", "true");
+    setShowOnboarding(false);
+  };
+
+  // Calculate how many problems to show
   const dailyGoal = queueData?.dailyGoal ?? 3;
   const reviewedToday = queueData?.reviewedToday ?? 0;
-  // If user already exceeded daily goal, base target on what they've done
-  // This ensures "+1" always shows 1 more problem, even if they've done extra
-  const baseTarget = Math.max(dailyGoal, reviewedToday);
-  const targetForToday = baseTarget + extraProblems;
-  const remainingToShow = Math.max(0, targetForToday - reviewedToday);
+  // Use the stored target, or fall back to dailyGoal while loading
+  const effectiveTarget = targetForToday ?? dailyGoal;
+  const remainingToShow = Math.max(0, effectiveTarget - reviewedToday);
+  // Calculate extra problems for display (how many beyond the original daily goal)
+  const extraProblems = Math.max(0, effectiveTarget - dailyGoal);
 
   const handleAddMore = (count: number) => {
-    setExtraProblems(extraProblems + count);
+    // Add to the current target - this is a one-time increase
+    setTargetForToday(effectiveTarget + count);
     setShowAddMoreDialog(false);
   };
 
@@ -241,7 +278,7 @@ export default function DashboardPage() {
   // Slice problems to only show the remaining amount for today
   const problemsToShow = queueData?.problems.slice(0, remainingToShow) ?? [];
   const completedDailyGoal = reviewedToday >= dailyGoal;
-  const completedAllForToday = reviewedToday >= targetForToday;
+  const completedAllForToday = reviewedToday >= effectiveTarget;
   const hasNoProblemSets = queueData?.problems.length === 0 && !queueData?.hasMoreProblems;
 
   return (
@@ -249,7 +286,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <div className="text-sm text-muted-foreground">
-          {reviewedToday} / {targetForToday} today
+          {reviewedToday} / {effectiveTarget} today
           {extraProblems > 0 && (
             <span className="text-xs ml-1">(+{extraProblems} extra)</span>
           )}
@@ -646,6 +683,12 @@ export default function DashboardPage() {
         streak={streakData}
         xp={streakXPData}
         weeklyActivity={statsData?.weeklyActivity}
+      />
+
+      {/* Onboarding Modal - shown on first login */}
+      <OnboardingModal
+        open={showOnboarding}
+        onComplete={handleOnboardingComplete}
       />
     </div>
   );

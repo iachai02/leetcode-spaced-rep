@@ -43,12 +43,12 @@ export interface Rank {
 
 export const RANKS: Rank[] = [
   { name: "Technical Intern", minXP: 0, color: "#D4A574", badge: "/badges/technical-intern.png" }, // bronze/gold
-  { name: "Junior Developer", minXP: 500, color: "#84CC16" },      // lime
-  { name: "Software Engineer", minXP: 2000, color: "#22C55E" },    // green
-  { name: "Senior Engineer", minXP: 5000, color: "#3B82F6" },      // blue
-  { name: "Staff Engineer", minXP: 12000, color: "#8B5CF6" },      // violet
-  { name: "Principal Architect", minXP: 25000, color: "#EC4899" }, // pink
-  { name: "Distinguished Engineer", minXP: 50000, color: "#F97316" }, // orange
+  { name: "Junior Developer", minXP: 500, color: "#84CC16", badge: "/badges/junior-developer.png" }, // lime
+  { name: "Software Engineer", minXP: 2000, color: "#22C55E", badge: "/badges/software-engineer.png" }, // green
+  { name: "Senior Engineer", minXP: 5000, color: "#3B82F6", badge: "/badges/senior-engineer.png" }, // blue
+  { name: "Staff Engineer", minXP: 12000, color: "#8B5CF6", badge: "/badges/staff-engineer.png" }, // violet
+  { name: "Principal Architect", minXP: 25000, color: "#EC4899", badge: "/badges/principal-architect.png" }, // pink
+  { name: "Distinguished Engineer", minXP: 50000, color: "#F97316", badge: "/badges/distinguished-engineer.png" }, // orange
   { name: "Technical Fellow", minXP: 100000, color: "#EAB308" },   // yellow/gold
   { name: "LeetCode Legend", minXP: 250000, color: "#10B981", badge: "/badges/leetcode-legend.png" }, // emerald green with special badge
 ];

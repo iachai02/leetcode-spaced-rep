@@ -2,6 +2,16 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { getRank } from "@/lib/xp";
 
+// Generate a random 8-character alphanumeric friend code
+function generateFriendCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "";
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 // GET - List friends and pending requests
 export async function GET() {
   const supabase = await createClient();
@@ -105,11 +115,20 @@ export async function GET() {
     .eq("id", user.id)
     .single();
 
+  // Generate friend code if missing
+  let friendCode = profile?.friend_code ?? null;
+  if (!friendCode) {
+    friendCode = generateFriendCode();
+    await supabase
+      .from("profiles")
+      .upsert({ id: user.id, friend_code: friendCode }, { onConflict: "id" });
+  }
+
   return NextResponse.json({
     friends,
     pendingReceived,
     pendingSent,
-    friendCode: profile?.friend_code,
+    friendCode,
   });
 }
 

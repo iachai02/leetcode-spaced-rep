@@ -94,11 +94,10 @@ export async function POST(request: Request) {
   const newRank = getRank(newTotalXP);
   const rankProgress = getProgressToNextRank(newTotalXP);
 
-  // Update total XP in profiles
+  // Update total XP in profiles (use upsert in case profile doesn't exist yet)
   await supabase
     .from("profiles")
-    .update({ total_xp: newTotalXP })
-    .eq("id", user.id);
+    .upsert({ id: user.id, total_xp: newTotalXP }, { onConflict: "id" });
 
   // Update category XP (use first tag as category, or "General" if none)
   const category = problem?.tags?.[0] ?? "General";
