@@ -23,6 +23,22 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Get user's friend code first (needed in all responses)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("friend_code")
+    .eq("id", user.id)
+    .single();
+
+  // Generate friend code if missing
+  let friendCode = profile?.friend_code ?? null;
+  if (!friendCode) {
+    friendCode = generateFriendCode();
+    await supabase
+      .from("profiles")
+      .upsert({ id: user.id, friend_code: friendCode }, { onConflict: "id" });
+  }
+
   // Get all friend relationships
   const { data: friendships } = await supabase
     .from("friends")
@@ -34,6 +50,7 @@ export async function GET() {
       friends: [],
       pendingReceived: [],
       pendingSent: [],
+      friendCode,
     });
   }
 
@@ -106,22 +123,6 @@ export async function GET() {
         });
       }
     }
-  }
-
-  // Get user's friend code
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("friend_code")
-    .eq("id", user.id)
-    .single();
-
-  // Generate friend code if missing
-  let friendCode = profile?.friend_code ?? null;
-  if (!friendCode) {
-    friendCode = generateFriendCode();
-    await supabase
-      .from("profiles")
-      .upsert({ id: user.id, friend_code: friendCode }, { onConflict: "id" });
   }
 
   return NextResponse.json({

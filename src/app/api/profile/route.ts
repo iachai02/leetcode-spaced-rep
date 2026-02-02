@@ -45,7 +45,7 @@ export async function GET() {
         friend_code: friendCode,
         daily_goal: 3,
         total_xp: 0,
-        show_on_leaderboard: false,
+        show_on_leaderboard: true,  // Default to visible on leaderboard
       }, { onConflict: "id" });
   }
 

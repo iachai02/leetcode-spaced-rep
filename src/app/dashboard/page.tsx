@@ -137,15 +137,26 @@ export default function DashboardPage() {
     const userIsGuest = queueJson.isGuest === true;
     setIsGuest(userIsGuest);
 
-    // Initialize targetForToday on first load if not already set
-    // This captures the dailyGoal at session start and won't change as reviewedToday increases
-    if (isInitialLoad && targetForToday === null) {
+    // Initialize or reset targetForToday on first load
+    if (isInitialLoad) {
       const dailyGoal = queueJson.dailyGoal ?? 3;
       const reviewedToday = queueJson.reviewedToday ?? 0;
-      // If user already exceeded their daily goal, use that as the base
-      // Otherwise use the daily goal
-      const initialTarget = Math.max(dailyGoal, reviewedToday);
-      setTargetForToday(initialTarget);
+
+      // Reset targetForToday if:
+      // 1. It's not set (null), OR
+      // 2. It's stale from a new day (reviewedToday === 0 but target > dailyGoal), OR
+      // 3. User already reviewed more than target (e.g., from a different session/device)
+      const storedTarget = targetForToday;
+      const isStaleNewDay = storedTarget !== null &&
+                            reviewedToday === 0 &&
+                            storedTarget > dailyGoal;
+      const isStaleFromMoreReviews = storedTarget !== null &&
+                                     reviewedToday > storedTarget;
+
+      if (storedTarget === null || isStaleNewDay || isStaleFromMoreReviews) {
+        const initialTarget = Math.max(dailyGoal, reviewedToday);
+        setTargetForToday(initialTarget);
+      }
     }
 
     // Only fetch stats and upcoming for signed-in users
@@ -250,8 +261,10 @@ export default function DashboardPage() {
   const extraProblems = Math.max(0, effectiveTarget - dailyGoal);
 
   const handleAddMore = (count: number) => {
-    // Add to the current target - this is a one-time increase
-    setTargetForToday(effectiveTarget + count);
+    // Add to the current target - ensure we start from at least reviewedToday
+    // so that `remainingToShow` (target - reviewed) is positive and problems appear
+    const baseTarget = Math.max(effectiveTarget, reviewedToday);
+    setTargetForToday(baseTarget + count);
     setShowAddMoreDialog(false);
   };
 
