@@ -5,12 +5,75 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const url = new URL(request.url);
   const limit = parseInt(url.searchParams.get("limit") || "3");
+
+  // Guest mode: return sample problems without user-specific progress
+  // This lets guests try the app before signing in
+  if (!user) {
+    // Get problems from NeetCode 150 (a good default set for demo)
+    const { data: neetcodeSet } = await supabase
+      .from("problem_sets")
+      .select("id")
+      .eq("name", "NeetCode 150")
+      .single();
+
+    if (!neetcodeSet) {
+      // Fallback: just get any problems
+      const { data: problems } = await supabase
+        .from("problems")
+        .select("id, leetcode_id, title, difficulty, url, tags")
+        .order("leetcode_id", { ascending: true })
+        .limit(limit);
+
+      return NextResponse.json({
+        problems: (problems ?? []).map(p => ({ ...p, status: "new", nextReview: null })),
+        dailyGoal: 3,
+        reviewedToday: 0,
+        hasMoreProblems: true,
+        isGuest: true,
+      });
+    }
+
+    // Get problems from NeetCode 150 in curriculum order
+    const { data: setItems } = await supabase
+      .from("problem_set_items")
+      .select("problem_id, sort_order")
+      .eq("problem_set_id", neetcodeSet.id)
+      .order("sort_order", { ascending: true })
+      .limit(limit);
+
+    if (!setItems || setItems.length === 0) {
+      return NextResponse.json({
+        problems: [],
+        dailyGoal: 3,
+        reviewedToday: 0,
+        hasMoreProblems: false,
+        isGuest: true,
+      });
+    }
+
+    const problemIds = setItems.map((item) => item.problem_id);
+
+    const { data: problems } = await supabase
+      .from("problems")
+      .select("id, leetcode_id, title, difficulty, url, tags")
+      .in("id", problemIds);
+
+    // Sort problems by the curriculum order from setItems
+    const sortOrderMap = new Map(setItems.map((item) => [item.problem_id, item.sort_order]));
+    const sortedProblems = (problems ?? [])
+      .map(p => ({ ...p, status: "new", nextReview: null }))
+      .sort((a, b) => (sortOrderMap.get(a.id) ?? 0) - (sortOrderMap.get(b.id) ?? 0));
+
+    return NextResponse.json({
+      problems: sortedProblems,
+      dailyGoal: 3,
+      reviewedToday: 0,
+      hasMoreProblems: true,
+      isGuest: true,
+    });
+  }
 
   // Get excluded (skipped) problem IDs - these are problems the user
   // doesn't want to see right now, but should still come back when due

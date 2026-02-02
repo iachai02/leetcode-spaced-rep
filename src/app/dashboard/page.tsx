@@ -13,9 +13,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ProblemCard } from "@/components/problem-card";
-import { RatingModal } from "@/components/rating-modal";
+import { RatingModal, type ReviewResponse } from "@/components/rating-modal";
+import { StreakModal } from "@/components/streak-modal";
 import { Badge } from "@/components/ui/badge";
 import { ActivityHeatmap } from "@/components/activity-heatmap";
+import { Lock } from "lucide-react";
 
 interface Problem {
   id: string;
@@ -33,6 +35,7 @@ interface QueueData {
   dailyGoal: number;
   reviewedToday: number;
   hasMoreProblems: boolean;
+  isGuest?: boolean;
 }
 
 interface StatsData {
@@ -74,21 +77,37 @@ export default function DashboardPage() {
   // We use state instead of localStorage because skipping is temporary (just for this session)
   const [skippedIds, setSkippedIds] = useState<string[]>([]);
   const [upcomingProblems, setUpcomingProblems] = useState<UpcomingProblem[]>([]);
+  // Guest state - determined from API response
+  const [isGuest, setIsGuest] = useState(false);
+  // Streak modal state - shown after first problem of the day
+  const [showStreakModal, setShowStreakModal] = useState(false);
+  const [streakData, setStreakData] = useState<ReviewResponse["streak"]>(null);
 
   const fetchData = useCallback(async (excludeIds: string[] = []) => {
     // Pass skipped IDs to the API so it returns replacement problems
     const excludeParam = excludeIds.length > 0 ? `&exclude=${excludeIds.join(",")}` : "";
-    const [queueResponse, statsResponse, upcomingResponse] = await Promise.all([
-      fetch(`/api/problems/queue?limit=20${excludeParam}`),
-      fetch("/api/stats"),
-      fetch("/api/problems/upcoming"),
-    ]);
+
+    // First fetch queue to determine if user is a guest
+    const queueResponse = await fetch(`/api/problems/queue?limit=20${excludeParam}`);
     const queueJson = await queueResponse.json();
-    const statsJson = await statsResponse.json();
-    const upcomingJson = await upcomingResponse.json();
     setQueueData(queueJson);
-    setStatsData(statsJson);
-    setUpcomingProblems(upcomingJson.problems ?? []);
+
+    const userIsGuest = queueJson.isGuest === true;
+    setIsGuest(userIsGuest);
+
+    // Only fetch stats and upcoming for signed-in users
+    // Guests don't have personalized data to show
+    if (!userIsGuest) {
+      const [statsResponse, upcomingResponse] = await Promise.all([
+        fetch("/api/stats"),
+        fetch("/api/problems/upcoming"),
+      ]);
+      const statsJson = await statsResponse.json();
+      const upcomingJson = await upcomingResponse.json();
+      setStatsData(statsJson);
+      setUpcomingProblems(upcomingJson.problems ?? []);
+    }
+
     setLoading(false);
   }, []);
 
@@ -98,7 +117,10 @@ export default function DashboardPage() {
   }, [extraProblems, skippedIds, fetchData]);
 
   // Listen for visibility change to show rating modal when user returns
+  // Only for signed-in users - guests don't track progress
   useEffect(() => {
+    if (isGuest) return;
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         const activeProblemId = localStorage.getItem("active_problem_id");
@@ -114,7 +136,7 @@ export default function DashboardPage() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [queueData?.problems]);
+  }, [queueData?.problems, isGuest]);
 
   const handleRatingClose = () => {
     localStorage.removeItem("active_problem_id");
@@ -122,12 +144,18 @@ export default function DashboardPage() {
     setRatingProblem(null);
   };
 
-  const handleRatingSubmit = () => {
+  const handleRatingSubmit = (response: ReviewResponse) => {
     localStorage.removeItem("active_problem_id");
     setShowRatingModal(false);
     setRatingProblem(null);
-    // Refresh data to update the list
+    // Refresh data to update the list and heatmap
     fetchData(skippedIds);
+
+    // Show streak modal if this was the first problem of the day
+    if (response.isFirstOfDay && response.streak) {
+      setStreakData(response.streak);
+      setShowStreakModal(true);
+    }
   };
 
   // When user skips a problem, we add it to the skipped list
@@ -193,8 +221,27 @@ export default function DashboardPage() {
         </TabsList>
 
         <TabsContent value="problems">
+          {/* Guest banner */}
+          {isGuest && (
+            <Card className="mb-4 border-dashed">
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Try it out!</p>
+                    <p className="text-sm text-muted-foreground">
+                      Sign in to save your progress and track your learning.
+                    </p>
+                  </div>
+                  <Link href="/login">
+                    <Button size="sm">Sign in</Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* No problem sets selected */}
-          {hasNoProblemSets ? (
+          {!isGuest && hasNoProblemSets ? (
             <Card>
               <CardContent className="py-8 text-center">
                 <p className="text-muted-foreground mb-4">
@@ -209,7 +256,20 @@ export default function DashboardPage() {
             /* Completed all problems for today */
             <Card>
               <CardContent className="py-8 text-center">
-                {completedDailyGoal ? (
+                {isGuest ? (
+                  // Guests see sign-in prompt after finishing sample problems
+                  <>
+                    <p className="text-xl font-semibold mb-2">
+                      Nice work!
+                    </p>
+                    <p className="text-muted-foreground mb-4">
+                      Sign in to track your progress and unlock more problems.
+                    </p>
+                    <Link href="/login">
+                      <Button>Sign in with Google</Button>
+                    </Link>
+                  </>
+                ) : completedDailyGoal ? (
                   <>
                     <div className="text-4xl mb-2">🎉</div>
                     <p className="text-xl font-semibold mb-2">
@@ -230,7 +290,7 @@ export default function DashboardPage() {
                     </p>
                   </>
                 )}
-                {queueData?.hasMoreProblems && (
+                {!isGuest && queueData?.hasMoreProblems && (
                   <Button variant="outline" onClick={() => setShowAddMoreDialog(true)}>
                     Add More Problems
                   </Button>
@@ -247,12 +307,13 @@ export default function DashboardPage() {
                     problem={problem}
                     onStart={() => {}}
                     onSkip={() => handleSkipProblem(problem.id)}
+                    isGuest={isGuest}
                   />
                 ))}
               </div>
 
-              {/* Show "Add More" if there are more problems available */}
-              {queueData?.hasMoreProblems && (
+              {/* Show "Add More" if there are more problems available (signed-in users only) */}
+              {!isGuest && queueData?.hasMoreProblems && (
                 <div className="text-center pt-4">
                   <Button variant="outline" onClick={() => setShowAddMoreDialog(true)}>
                     Add More Problems
@@ -264,7 +325,22 @@ export default function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="upcoming">
-          {upcomingProblems.length === 0 ? (
+          {isGuest ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Lock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-lg font-medium mb-2">
+                  Sign in to track your progress
+                </p>
+                <p className="text-muted-foreground mb-6">
+                  See your upcoming reviews and never forget a problem again.
+                </p>
+                <Link href="/login">
+                  <Button>Sign in with Google</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : upcomingProblems.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
                 <p className="text-muted-foreground">
@@ -289,118 +365,137 @@ export default function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="stats">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {isGuest ? (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Today
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">
-                  {statsData?.reviewedToday ?? 0}
-                  <span className="text-lg text-muted-foreground font-normal">
-                    {" "}
-                    / {statsData?.dailyGoal ?? 3}
-                  </span>
+              <CardContent className="py-12 text-center">
+                <Lock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-lg font-medium mb-2">
+                  Sign in to see your stats
                 </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Current Streak
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">
-                  {statsData?.currentStreak ?? 0}
-                  <span className="text-lg text-muted-foreground font-normal">
-                    {" "}
-                    days
-                  </span>
+                <p className="text-muted-foreground mb-6">
+                  Track your streaks, mastery progress, and review history.
                 </p>
+                <Link href="/login">
+                  <Button>Sign in with Google</Button>
+                </Link>
               </CardContent>
             </Card>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Today
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">
+                      {statsData?.reviewedToday ?? 0}
+                      <span className="text-lg text-muted-foreground font-normal">
+                        {" "}
+                        / {statsData?.dailyGoal ?? 3}
+                      </span>
+                    </p>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Longest Streak
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">
-                  {statsData?.longestStreak ?? 0}
-                  <span className="text-lg text-muted-foreground font-normal">
-                    {" "}
-                    days
-                  </span>
-                </p>
-              </CardContent>
-            </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Current Streak
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">
+                      {statsData?.currentStreak ?? 0}
+                      <span className="text-lg text-muted-foreground font-normal">
+                        {" "}
+                        days
+                      </span>
+                    </p>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Reviews
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{statsData?.totalReviews ?? 0}</p>
-              </CardContent>
-            </Card>
-          </div>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Longest Streak
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">
+                      {statsData?.longestStreak ?? 0}
+                      <span className="text-lg text-muted-foreground font-normal">
+                        {" "}
+                        days
+                      </span>
+                    </p>
+                  </CardContent>
+                </Card>
 
-          <div className="grid md:grid-cols-3 gap-4 mt-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Learning
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-yellow-500">
-                  {statsData?.learning ?? 0}
-                </p>
-              </CardContent>
-            </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total Reviews
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{statsData?.totalReviews ?? 0}</p>
+                  </CardContent>
+                </Card>
+              </div>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Review
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-blue-500">
-                  {statsData?.review ?? 0}
-                </p>
-              </CardContent>
-            </Card>
+              <div className="grid md:grid-cols-3 gap-4 mt-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Learning
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold text-yellow-500">
+                      {statsData?.learning ?? 0}
+                    </p>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Mastered
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-green-500">
-                  {statsData?.mastered ?? 0}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Review
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold text-blue-500">
+                      {statsData?.review ?? 0}
+                    </p>
+                  </CardContent>
+                </Card>
 
-          {/* Activity Heatmap */}
-          <div className="mt-4">
-            <ActivityHeatmap
-              activity={statsData?.activity ?? {}}
-              maxCount={statsData?.maxActivityCount ?? 0}
-            />
-          </div>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Mastered
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold text-green-500">
+                      {statsData?.mastered ?? 0}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Activity Heatmap */}
+              <div className="mt-4">
+                <ActivityHeatmap
+                  activity={statsData?.activity ?? {}}
+                  maxCount={statsData?.maxActivityCount ?? 0}
+                />
+              </div>
+            </>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -434,6 +529,13 @@ export default function DashboardPage() {
         open={showRatingModal}
         onClose={handleRatingClose}
         onSubmit={handleRatingSubmit}
+      />
+
+      {/* Streak Modal - shown after first problem of the day */}
+      <StreakModal
+        open={showStreakModal}
+        onClose={() => setShowStreakModal(false)}
+        streak={streakData}
       />
     </div>
   );

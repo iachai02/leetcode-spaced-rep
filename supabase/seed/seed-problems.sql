@@ -105,7 +105,7 @@ INSERT INTO problems (leetcode_id, title, difficulty, url, tags) VALUES
 (253, 'Meeting Rooms II', 'Medium', 'https://leetcode.com/problems/meeting-rooms-ii/', ARRAY['Array', 'Two Pointers', 'Greedy', 'Sorting', 'Heap']),
 (261, 'Graph Valid Tree', 'Medium', 'https://leetcode.com/problems/graph-valid-tree/', ARRAY['Depth-First Search', 'Breadth-First Search', 'Union Find', 'Graph']),
 (268, 'Missing Number', 'Easy', 'https://leetcode.com/problems/missing-number/', ARRAY['Array', 'Hash Table', 'Math', 'Binary Search', 'Bit Manipulation', 'Sorting']),
-(271, 'Encode and Decode Strings', 'Medium', 'https://leetcode.com/problems/encode-and-decode-strings/', ARRAY['Array', 'String', 'Design']),
+(271, 'Encode and Decode Strings', 'Medium', 'https://neetcode.io/problems/string-encode-and-decode', ARRAY['Array', 'String', 'Design']),
 (283, 'Move Zeroes', 'Easy', 'https://leetcode.com/problems/move-zeroes/', ARRAY['Array', 'Two Pointers']),
 (286, 'Walls and Gates', 'Medium', 'https://leetcode.com/problems/walls-and-gates/', ARRAY['Array', 'Breadth-First Search', 'Matrix']),
 (287, 'Find the Duplicate Number', 'Medium', 'https://leetcode.com/problems/find-the-duplicate-number/', ARRAY['Array', 'Two Pointers', 'Binary Search', 'Bit Manipulation']),

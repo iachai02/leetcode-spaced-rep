@@ -27,11 +27,24 @@ interface ProgressState {
   status: string;
 }
 
+export interface ReviewResponse {
+  success: boolean;
+  nextReview: string;
+  interval: number;
+  status: string;
+  isFirstOfDay: boolean;
+  streak: {
+    current: number;
+    longest: number;
+    isNewRecord: boolean;
+  } | null;
+}
+
 interface RatingModalProps {
   problem: Problem | null;
   open: boolean;
   onClose: () => void;
-  onSubmit: () => void;
+  onSubmit: (response: ReviewResponse) => void;
 }
 
 const difficultyColors = {
@@ -99,8 +112,9 @@ export function RatingModal({ problem, open, onClose, onSubmit }: RatingModalPro
     });
 
     if (response.ok) {
+      const data: ReviewResponse = await response.json();
       localStorage.removeItem(`timer_${problem.id}`);
-      onSubmit();
+      onSubmit(data);
     } else {
       setSubmitting(false);
     }

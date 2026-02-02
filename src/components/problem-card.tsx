@@ -28,6 +28,7 @@ interface ProblemCardProps {
   onStart: () => void;
   onSkip?: () => void;
   onReset?: () => void;
+  isGuest?: boolean;
 }
 
 const difficultyColors = {
@@ -48,6 +49,7 @@ export function ProblemCard({
   onStart,
   onSkip,
   onReset,
+  isGuest = false,
 }: ProblemCardProps) {
   const [resetting, setResetting] = useState(false);
   const [tagsExpanded, setTagsExpanded] = useState(false);
@@ -59,17 +61,21 @@ export function ProblemCard({
   const hasMoreTags = hiddenTags.length > 0;
 
   const handleStart = () => {
-    // Store timer start in localStorage
-    localStorage.setItem(
-      `timer_${problem.id}`,
-      JSON.stringify({
-        startTime: Date.now(),
-        problemId: problem.id,
-      }),
-    );
+    // Only persist to localStorage for signed-in users
+    // Guests can still practice but their progress isn't tracked
+    if (!isGuest) {
+      // Store timer start in localStorage
+      localStorage.setItem(
+        `timer_${problem.id}`,
+        JSON.stringify({
+          startTime: Date.now(),
+          problemId: problem.id,
+        }),
+      );
 
-    // Store active problem for rating modal
-    localStorage.setItem('active_problem_id', problem.id);
+      // Store active problem for rating modal
+      localStorage.setItem('active_problem_id', problem.id);
+    }
 
     // Open LeetCode in new tab
     if (problem.url) {
@@ -195,37 +201,40 @@ export function ProblemCard({
             <Button onClick={handleStart} size='sm'>
               Start
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
-                  <span className='sr-only'>Open menu</span>
-                  <svg
-                    xmlns='http://www.w3.org/2000/svg'
-                    width='16'
-                    height='16'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
+            {/* Hide menu for guests - they have no progress to reset */}
+            {!isGuest && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
+                    <span className='sr-only'>Open menu</span>
+                    <svg
+                      xmlns='http://www.w3.org/2000/svg'
+                      width='16'
+                      height='16'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='2'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    >
+                      <circle cx='12' cy='12' r='1' />
+                      <circle cx='12' cy='5' r='1' />
+                      <circle cx='12' cy='19' r='1' />
+                    </svg>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuItem
+                    onClick={handleReset}
+                    disabled={resetting || problem.status === 'new'}
+                    className='text-red-500 focus:text-red-500'
                   >
-                    <circle cx='12' cy='12' r='1' />
-                    <circle cx='12' cy='5' r='1' />
-                    <circle cx='12' cy='19' r='1' />
-                  </svg>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end'>
-                <DropdownMenuItem
-                  onClick={handleReset}
-                  disabled={resetting || problem.status === 'new'}
-                  className='text-red-500 focus:text-red-500'
-                >
-                  Reset Progress
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    Reset Progress
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
       </CardHeader>

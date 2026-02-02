@@ -6,7 +6,7 @@
   {"leetcode_id": 347, "title": "Top K Frequent Elements", "difficulty": "Medium", "url": "https://leetcode.com/problems/top-k-frequent-elements/", "tags": ["Array", "Hash Table", "Divide and Conquer", "Sorting", "Heap", "Bucket Sort", "Counting", "Quickselect"], "category": "Arrays & Hashing"},
   {"leetcode_id": 238, "title": "Product of Array Except Self", "difficulty": "Medium", "url": "https://leetcode.com/problems/product-of-array-except-self/", "tags": ["Array", "Prefix Sum"], "category": "Arrays & Hashing"},
   {"leetcode_id": 36, "title": "Valid Sudoku", "difficulty": "Medium", "url": "https://leetcode.com/problems/valid-sudoku/", "tags": ["Array", "Hash Table", "Matrix"], "category": "Arrays & Hashing"},
-  {"leetcode_id": 271, "title": "Encode and Decode Strings", "difficulty": "Medium", "url": "https://leetcode.com/problems/encode-and-decode-strings/", "tags": ["Array", "String", "Design"], "category": "Arrays & Hashing"},
+  {"leetcode_id": 271, "title": "Encode and Decode Strings", "difficulty": "Medium", "url": "https://neetcode.io/problems/string-encode-and-decode", "tags": ["Array", "String", "Design"], "category": "Arrays & Hashing"},
   {"leetcode_id": 128, "title": "Longest Consecutive Sequence", "difficulty": "Medium", "url": "https://leetcode.com/problems/longest-consecutive-sequence/", "tags": ["Array", "Hash Table", "Union Find"], "category": "Arrays & Hashing"},
 
   {"leetcode_id": 125, "title": "Valid Palindrome", "difficulty": "Easy", "url": "https://leetcode.com/problems/valid-palindrome/", "tags": ["Two Pointers", "String"], "category": "Two Pointers"},

@@ -79,18 +79,35 @@ export async function POST(request: Request) {
     console.error("Failed to insert review history:", historyError);
   }
 
-  // Update streak
-  await updateStreak(supabase, user.id);
+  // Update streak and get streak info for the response
+  const streakResult = await updateStreak(supabase, user.id);
 
   return NextResponse.json({
     success: true,
     nextReview: newState.nextReview.toISOString(),
     interval: newState.interval,
     status: newState.status,
+    // Streak info for showing celebration modal
+    isFirstOfDay: streakResult.isFirstOfDay,
+    streak: streakResult.isFirstOfDay ? {
+      current: streakResult.currentStreak,
+      longest: streakResult.longestStreak,
+      isNewRecord: streakResult.isNewRecord,
+    } : null,
   });
 }
 
-async function updateStreak(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+interface StreakResult {
+  isFirstOfDay: boolean;
+  currentStreak: number;
+  longestStreak: number;
+  isNewRecord: boolean;
+}
+
+async function updateStreak(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<StreakResult> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().split("T")[0];
@@ -107,36 +124,57 @@ async function updateStreak(supabase: Awaited<ReturnType<typeof createClient>>, 
     .single();
 
   if (!streak) {
-    // Create initial streak
+    // Create initial streak - this is their first ever review
     await supabase.from("user_streaks").insert({
       user_id: userId,
       current_streak: 1,
       longest_streak: 1,
       last_review_date: todayStr,
     });
-    return;
+    return {
+      isFirstOfDay: true,
+      currentStreak: 1,
+      longestStreak: 1,
+      isNewRecord: true,
+    };
   }
 
-  // If already reviewed today, no update needed
+  // If already reviewed today, not the first of the day
   if (streak.last_review_date === todayStr) {
-    return;
+    return {
+      isFirstOfDay: false,
+      currentStreak: streak.current_streak,
+      longestStreak: streak.longest_streak,
+      isNewRecord: false,
+    };
   }
 
+  // This is the first review of the day!
   let newStreak: number;
   if (streak.last_review_date === yesterdayStr) {
-    // Consecutive day
+    // Consecutive day - streak continues
     newStreak = streak.current_streak + 1;
   } else {
-    // Streak broken
+    // Streak broken - starting fresh
     newStreak = 1;
   }
+
+  const newLongest = Math.max(newStreak, streak.longest_streak);
+  const isNewRecord = newStreak > streak.longest_streak;
 
   await supabase
     .from("user_streaks")
     .update({
       current_streak: newStreak,
-      longest_streak: Math.max(newStreak, streak.longest_streak),
+      longest_streak: newLongest,
       last_review_date: todayStr,
     })
     .eq("user_id", userId);
+
+  return {
+    isFirstOfDay: true,
+    currentStreak: newStreak,
+    longestStreak: newLongest,
+    isNewRecord,
+  };
 }
