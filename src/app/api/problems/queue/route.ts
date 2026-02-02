@@ -39,10 +39,10 @@ export async function GET(request: Request) {
 
   const setIds = activeSets.map((s) => s.problem_set_id);
 
-  // Get problems from active sets
+  // Get problems from active sets with sort_order
   const { data: setItems } = await supabase
     .from("problem_set_items")
-    .select("problem_id")
+    .select("problem_id, sort_order")
     .in("problem_set_id", setIds);
 
   if (!setItems || setItems.length === 0) {
@@ -55,6 +55,15 @@ export async function GET(request: Request) {
   }
 
   const problemIds = setItems.map((item) => item.problem_id);
+
+  // Create a map of problem_id -> minimum sort_order (for problems in multiple sets)
+  const sortOrderMap = new Map<string, number>();
+  for (const item of setItems) {
+    const current = sortOrderMap.get(item.problem_id);
+    if (current === undefined || item.sort_order < current) {
+      sortOrderMap.set(item.problem_id, item.sort_order);
+    }
+  }
 
   // Get user progress for these problems
   const { data: progressData } = await supabase
@@ -103,6 +112,7 @@ export async function GET(request: Request) {
         ? new Date(progress.next_review)
         : null;
       const status = progress?.status ?? "new";
+      const sortOrder = sortOrderMap.get(problem.id) ?? Infinity;
 
       // Calculate urgency (negative = overdue, positive = not yet due)
       let urgency = 0;
@@ -117,11 +127,24 @@ export async function GET(request: Request) {
         status,
         nextReview: progress?.next_review ?? null,
         urgency,
+        sortOrder,
         isDue: status === "new" || (nextReview && nextReview <= now),
       };
     })
     .filter((p) => p.isDue)
-    .sort((a, b) => a.urgency - b.urgency)
+    .sort((a, b) => {
+      // Primary sort by urgency
+      if (a.urgency !== b.urgency) {
+        // Handle -Infinity comparison
+        if (a.urgency === -Infinity && b.urgency === -Infinity) {
+          // Both are new, use sort_order
+          return a.sortOrder - b.sortOrder;
+        }
+        return a.urgency - b.urgency;
+      }
+      // Secondary sort by sort_order (curriculum order)
+      return a.sortOrder - b.sortOrder;
+    })
     .slice(0, limit);
 
   const hasMoreProblems = problems.filter((p) => {

@@ -64,5 +64,19 @@ Mastery: interval ≥ 30 days AND last rating was Easy/Medium
 
 - Use Row Level Security (RLS) on all user tables
 - Timer auto-starts when user opens LeetCode link, caps at 60 minutes
-- Due problems prioritized by urgency (most overdue first)
+- Due problems prioritized by urgency (most overdue first), with sort_order as tiebreaker for new problems
 - Problem metadata stored as static JSON for seeding
+
+## Testing Checklist
+
+Before considering a feature complete, verify:
+
+1. **No infinite loops in useEffect**
+   - Check browser network tab for repeated API calls
+   - Never include state that gets updated by the fetch in useEffect dependencies
+   - Bad: `useEffect(() => { fetchData(); }, [data])` where fetchData sets data
+   - Good: `useEffect(() => { fetchData(); }, [])` or use a separate trigger state
+
+2. **Build passes**: `npm run build`
+3. **Lint passes**: `npm run lint`
+4. **Manual testing**: Test the actual user flow in the browser
