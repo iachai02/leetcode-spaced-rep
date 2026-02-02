@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Link from "next/link";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface Problem {
   id: string;
@@ -26,6 +26,7 @@ interface Problem {
 interface ProblemCardProps {
   problem: Problem;
   onStart: () => void;
+  onSkip?: () => void;
   onReset?: () => void;
 }
 
@@ -42,8 +43,15 @@ const statusLabels: Record<string, string> = {
   mastered: "Mastered",
 };
 
-export function ProblemCard({ problem, onStart, onReset }: ProblemCardProps) {
+export function ProblemCard({ problem, onStart, onSkip, onReset }: ProblemCardProps) {
   const [resetting, setResetting] = useState(false);
+  const [tagsExpanded, setTagsExpanded] = useState(false);
+
+  // Show 2 tags by default, rest are expandable
+  const visibleTagCount = 2;
+  const visibleTags = problem.tags?.slice(0, visibleTagCount) ?? [];
+  const hiddenTags = problem.tags?.slice(visibleTagCount) ?? [];
+  const hasMoreTags = hiddenTags.length > 0;
 
   const handleStart = () => {
     // Store timer start in localStorage
@@ -54,6 +62,9 @@ export function ProblemCard({ problem, onStart, onReset }: ProblemCardProps) {
         problemId: problem.id,
       })
     );
+
+    // Store active problem for rating modal
+    localStorage.setItem("active_problem_id", problem.id);
 
     // Open LeetCode in new tab
     if (problem.url) {
@@ -81,84 +92,115 @@ export function ProblemCard({ problem, onStart, onReset }: ProblemCardProps) {
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1 flex-1">
-            <CardTitle className="text-lg flex items-center gap-2">
+      <CardHeader className="py-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="space-y-2 flex-1 min-w-0">
+            {/* Title row */}
+            <CardTitle className="text-base flex items-center gap-2">
               {problem.leetcode_id && (
-                <span className="text-muted-foreground">#{problem.leetcode_id}</span>
+                <span className="text-muted-foreground text-sm">#{problem.leetcode_id}</span>
               )}
-              {problem.title}
+              <span className="truncate">{problem.title}</span>
             </CardTitle>
-            <div className="flex flex-wrap gap-2">
+
+            {/* Badges + Tags row */}
+            <div className="flex items-center gap-2 flex-wrap">
               {problem.difficulty && (
                 <Badge
                   variant="outline"
-                  className={difficultyColors[problem.difficulty]}
+                  className={`text-xs ${difficultyColors[problem.difficulty]}`}
                 >
                   {problem.difficulty}
                 </Badge>
               )}
-              <Badge variant="secondary">
+              <Badge variant="secondary" className="text-xs">
                 {statusLabels[problem.status] || problem.status}
               </Badge>
-            </div>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+
+              {/* Separator */}
+              {visibleTags.length > 0 && (
+                <span className="text-muted-foreground">·</span>
+              )}
+
+              {/* Tags */}
+              {visibleTags.map((tag) => (
+                <Badge key={tag} variant="outline" className="text-xs font-normal">
+                  {tag}
+                </Badge>
+              ))}
+
+              {/* Expand button */}
+              {hasMoreTags && (
+                <button
+                  onClick={() => setTagsExpanded(!tagsExpanded)}
+                  className="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <circle cx="12" cy="12" r="1" />
-                  <circle cx="12" cy="5" r="1" />
-                  <circle cx="12" cy="19" r="1" />
-                </svg>
+                  +{hiddenTags.length}
+                  {tagsExpanded ? (
+                    <ChevronUp className="h-3 w-3" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Expanded tags */}
+            {tagsExpanded && hiddenTags.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {hiddenTags.map((tag) => (
+                  <Badge key={tag} variant="outline" className="text-xs font-normal">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1 shrink-0">
+            {onSkip && (
+              <Button onClick={onSkip} variant="ghost" size="sm">
+                Skip
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={handleReset}
-                disabled={resetting || problem.status === "new"}
-                className="text-red-500 focus:text-red-500"
-              >
-                Reset Progress
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            <Button onClick={handleStart} size="sm">
+              Start
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <span className="sr-only">Open menu</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="1" />
+                    <circle cx="12" cy="5" r="1" />
+                    <circle cx="12" cy="19" r="1" />
+                  </svg>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={handleReset}
+                  disabled={resetting || problem.status === "new"}
+                  className="text-red-500 focus:text-red-500"
+                >
+                  Reset Progress
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-1 mb-4">
-          {problem.tags?.slice(0, 3).map((tag) => (
-            <Badge key={tag} variant="outline" className="text-xs">
-              {tag}
-            </Badge>
-          ))}
-          {problem.tags && problem.tags.length > 3 && (
-            <Badge variant="outline" className="text-xs">
-              +{problem.tags.length - 3}
-            </Badge>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={handleStart} className="flex-1">
-            Start
-          </Button>
-          <Link href={`/review/${problem.id}`}>
-            <Button variant="outline">Rate</Button>
-          </Link>
-        </div>
-      </CardContent>
     </Card>
   );
 }

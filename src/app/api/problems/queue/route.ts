@@ -12,6 +12,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const limit = parseInt(url.searchParams.get("limit") || "3");
 
+  // Get excluded (skipped) problem IDs - these are problems the user
+  // doesn't want to see right now, but should still come back when due
+  const excludeParam = url.searchParams.get("exclude") || "";
+  const excludedIds = excludeParam ? excludeParam.split(",") : [];
+
   // Get user's daily goal
   const { data: profile } = await supabase
     .from("profiles")
@@ -131,7 +136,7 @@ export async function GET(request: Request) {
         isDue: status === "new" || (nextReview && nextReview <= now),
       };
     })
-    .filter((p) => p.isDue)
+    .filter((p) => p.isDue && !excludedIds.includes(p.id))
     .sort((a, b) => {
       // Primary sort by urgency
       if (a.urgency !== b.urgency) {
@@ -147,7 +152,10 @@ export async function GET(request: Request) {
     })
     .slice(0, limit);
 
+  // Check if there are more due problems beyond what we're returning
+  // (excluding skipped ones from the count)
   const hasMoreProblems = problems.filter((p) => {
+    if (excludedIds.includes(p.id)) return false;
     const progress = progressMap.get(p.id);
     const status = progress?.status ?? "new";
     const nextReview = progress?.next_review

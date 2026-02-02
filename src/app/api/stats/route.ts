@@ -56,6 +56,27 @@ export async function GET() {
     .eq("id", user.id)
     .single();
 
+  // Get activity data for heatmap (last 365 days)
+  // We fetch reviewed_at dates and count them server-side
+  // This is faster than having the heatmap component make a separate request
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  oneYearAgo.setHours(0, 0, 0, 0);
+
+  const { data: activityReviews } = await supabase
+    .from("review_history")
+    .select("reviewed_at")
+    .eq("user_id", user.id)
+    .gte("reviewed_at", oneYearAgo.toISOString());
+
+  // Count reviews per day (server-side aggregation)
+  const activityMap: Record<string, number> = {};
+  for (const review of activityReviews ?? []) {
+    const date = review.reviewed_at.split("T")[0];
+    activityMap[date] = (activityMap[date] ?? 0) + 1;
+  }
+  const maxActivityCount = Math.max(...Object.values(activityMap), 0);
+
   return NextResponse.json({
     currentStreak: streak?.current_streak ?? 0,
     longestStreak: streak?.longest_streak ?? 0,
@@ -66,5 +87,8 @@ export async function GET() {
     learning,
     review,
     totalReviews: totalReviews ?? 0,
+    // Activity data for heatmap - included here to avoid separate fetch
+    activity: activityMap,
+    maxActivityCount,
   });
 }
