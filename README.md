@@ -70,7 +70,7 @@ npm install
 cp .env.example .env.local
 ```
 
-Add your Supabase credentials to `.env.local`:
+Add your Supabase and Google credentials to `.env.local`:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
