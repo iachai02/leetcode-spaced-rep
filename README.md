@@ -2,7 +2,7 @@
 
 A web app that applies the **SM-2 spaced repetition algorithm** to LeetCode practice. Stop grinding randomly — review problems at scientifically optimal intervals based on your performance.
 
-[Live Demo](https://your-vercel-url.vercel.app) · [Report Bug](https://github.com/yourusername/leetcode-spaced-rep/issues)
+[Live Demo](https://leetcode-spaced-rep.vercel.app/) · [Report Bug](https://github.com/yourusername/leetcode-spaced-rep/issues)
 
 <p align="center">
   <img src="./assets/demo-dashboard.gif" alt="Dashboard Demo" width="45%">
