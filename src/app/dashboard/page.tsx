@@ -163,8 +163,9 @@ export default function DashboardPage() {
     // Only fetch stats and upcoming for signed-in users
     // Guests don't have personalized data to show
     if (!userIsGuest) {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const [statsResponse, upcomingResponse, profileResponse] = await Promise.all([
-        fetch("/api/stats"),
+        fetch(`/api/stats?tz=${encodeURIComponent(tz)}`),
         fetch("/api/problems/upcoming"),
         fetch("/api/profile", { cache: "no-store" }),
       ]);
