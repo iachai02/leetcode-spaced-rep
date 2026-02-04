@@ -127,21 +127,36 @@ export default function DashboardPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   const fetchData = useCallback(async (excludeIds: string[] = [], isInitialLoad = false) => {
-    // Pass skipped IDs to the API so it returns replacement problems
-    const excludeParam = excludeIds.length > 0 ? `&exclude=${excludeIds.join(",")}` : "";
+    // Build query params for the single dashboard endpoint
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const params = new URLSearchParams({
+      limit: "20",
+      tz,
+    });
+    if (excludeIds.length > 0) {
+      params.set("exclude", excludeIds.join(","));
+    }
 
-    // First fetch queue to determine if user is a guest
-    const queueResponse = await fetch(`/api/problems/queue?limit=20${excludeParam}`);
-    const queueJson = await queueResponse.json();
-    setQueueData(queueJson);
+    // Single API call that returns all dashboard data
+    const response = await fetch(`/api/dashboard?${params.toString()}`);
+    const data = await response.json();
 
-    const userIsGuest = queueJson.isGuest === true;
+    // Set queue data (compatible with existing QueueData interface)
+    setQueueData({
+      problems: data.problems,
+      dailyGoal: data.profile.dailyGoal,
+      reviewedToday: data.stats?.reviewedToday ?? 0,
+      hasMoreProblems: data.hasMoreProblems,
+      isGuest: data.isGuest,
+    });
+
+    const userIsGuest = data.isGuest === true;
     setIsGuest(userIsGuest);
 
     // Initialize or reset targetForToday on first load
     if (isInitialLoad) {
-      const dailyGoal = queueJson.dailyGoal ?? 3;
-      const reviewedToday = queueJson.reviewedToday ?? 0;
+      const dailyGoal = data.profile.dailyGoal ?? 3;
+      const reviewedToday = data.stats?.reviewedToday ?? 0;
 
       // Reset targetForToday if:
       // 1. It's not set (null), OR
@@ -160,26 +175,16 @@ export default function DashboardPage() {
       }
     }
 
-    // Only fetch stats and upcoming for signed-in users
-    // Guests don't have personalized data to show
-    if (!userIsGuest) {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const [statsResponse, upcomingResponse, profileResponse] = await Promise.all([
-        fetch(`/api/stats?tz=${encodeURIComponent(tz)}`),
-        fetch("/api/problems/upcoming"),
-        fetch("/api/profile", { cache: "no-store" }),
-      ]);
-      const statsJson = await statsResponse.json();
-      const upcomingJson = await upcomingResponse.json();
-      const profileJson = await profileResponse.json();
-      setStatsData(statsJson);
-      setUpcomingProblems(upcomingJson.problems ?? []);
+    // Set stats and upcoming for signed-in users
+    if (!userIsGuest && data.stats) {
+      setStatsData(data.stats);
+      setUpcomingProblems(data.upcomingProblems ?? []);
 
       // Check if onboarding should be shown
       // Show if: signed in, no display name, and hasn't completed onboarding before
       if (isInitialLoad) {
         const hasCompletedOnboarding = localStorage.getItem("onboarding_complete") === "true";
-        if (!profileJson.displayName && !hasCompletedOnboarding) {
+        if (!data.profile.displayName && !hasCompletedOnboarding) {
           setShowOnboarding(true);
         }
       }
